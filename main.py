@@ -5,10 +5,10 @@ import plotly.express as px
 # Load data from files
 def load_data():
     file_paths = {
-        "Distinction": "decoded_output_distinction_PrefixSpan.txt_50%",
-        "Pass": "decoded_output_pass_PrefixSpan.txt_50%",
-        "Fail": "decoded_output_fail_PrefixSpan.txt_50%",
-        "Withdrawn": "decoded_output_withdrawn_PrefixSpan.txt_50%",
+        "Distinction": "decoded_output_distinction_PrefixSpan (1).txt_50%",
+        "Pass": "decoded_output_pass_PrefixSpan (1).txt_50%",
+        "Fail": "decoded_output_fail_PrefixSpan (1).txt_50%",
+        "Withdrawn": "decoded_output_withdrawn_PrefixSpan (1).txt_50%",
     }
     data = {}
     support_counts = {}
@@ -35,7 +35,12 @@ def extract_unique_activities(data):
 
 # Convert sequence string to readable format
 def format_sequence(seq):
-    return " -> ".join([s for s in seq.split() if s != "-1"])
+    days = seq.strip().split(" -1")
+    return " -> ".join([" ".join(day.strip().split()) for day in days if day.strip()])
+
+# Count number of days in a sequence
+def count_days(seq):
+    return seq.strip().split().count("-1")
 
 # Create bar chart for support counts
 def plot_support_counts(selected_sequence, support_counts):
@@ -111,11 +116,11 @@ def main():
 
     selected_days = []
     for i in range(day_count):
-        day_activities = st.sidebar.text_input(f"Activities for day {i+1}", key=f"day_{i+1}")
-        selected_days.append(day_activities)
+        day_activities = st.sidebar.text_input(f"Activities for day {i+1} (separate by space)", key=f"day_{i+1}")
+        selected_days.append(day_activities.strip())
 
     if st.sidebar.button("Confirm Sequence"):
-        selected_sequence = " -1 ".join(selected_days) + " -1"
+        selected_sequence = " -1 ".join([d for d in selected_days if d]) + " -1"
         st.write(f"### Selected Sequence: {format_sequence(selected_sequence)}")
 
         category_decision, best_category = plot_support_counts(selected_sequence, support_counts)
@@ -123,27 +128,28 @@ def main():
         st.write(category_decision)
 
         suggestions = suggest_improvement(selected_sequence, support_counts)
-        st.write("### Suggested Improvements:")
         if suggestions:
+            st.write("### Suggested Improvements:")
             for seq, category, sup in suggestions:
                 st.write(f"- {format_sequence(seq)} (Category: {category}, Support: {sup})")
         else:
+            st.write("### Suggested Improvements:")
             st.write("Current sequence does not have an improvement path towards Pass or Distinction. Consider exploring different activities.")
 
-    # Top k sequences with optional minimum day length
-    st.sidebar.markdown("---")
+    # Top k sequences with minimum day length
     k = st.sidebar.slider("Top k sequences", min_value=1, max_value=20, value=5)
     min_days = st.sidebar.slider("Minimum number of days in sequence", min_value=1, max_value=10, value=1)
 
     for category, seq_counts in support_counts.items():
-        filtered = [(seq, sup) for seq, sup in seq_counts.items() if seq.count("-1") >= min_days]
-        top_k = sorted(filtered, key=lambda x: x[1], reverse=True)[:k]
-        st.write(f"### Top {k} sequences in {category} (Min {min_days} days)")
-        df = pd.DataFrame(
-            [(format_sequence(seq), sup) for seq, sup in top_k],
-            columns=["Sequence", "Support Count"]
-        )
-        st.dataframe(df)
+        filtered_seqs = [(seq, sup) for seq, sup in seq_counts.items() if count_days(seq) >= min_days]
+        top_k = sorted(filtered_seqs, key=lambda x: x[1], reverse=True)[:k]
+        if top_k:
+            st.write(f"### Top {k} sequences in {category} with ≥ {min_days} days")
+            df = pd.DataFrame(
+                [(format_sequence(seq), sup) for seq, sup in top_k],
+                columns=["Sequence", "Support Count"]
+            )
+            st.dataframe(df)
 
 if __name__ == "__main__":
     main()
